@@ -1,0 +1,35 @@
+
+services:
+  public-node:
+    build: 
+      context: ./PublicNode
+    container_name: public-node
+    ports:
+      - "8080:8080"
+    networks:
+      - pii-network
+
+  secure-node:
+    build: 
+      context: ./SecureNode
+    container_name: secure-node
+    ports:
+      - "8081:8081"
+    networks:
+      - pii-network
+
+  client-node:
+    build: 
+      context: ./ClientNode
+    container_name: client-node
+    ports:
+      - "5000:5000"
+    depends_on:
+      - public-node
+      - secure-node
+    networks:
+      - pii-network
+
+networks:
+  pii-network:
+    driver: bridge

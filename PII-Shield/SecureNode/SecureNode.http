@@ -1,0 +1,6 @@
+@SecureNode_HostAddress = http://localhost:5276
+
+GET {{SecureNode_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

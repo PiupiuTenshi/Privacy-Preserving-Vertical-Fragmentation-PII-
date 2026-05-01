@@ -1,0 +1,6 @@
+@PublicNode_HostAddress = http://localhost:5076
+
+GET {{PublicNode_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

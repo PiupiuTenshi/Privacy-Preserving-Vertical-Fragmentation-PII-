@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ClientNode/ClientNode.csproj" />
+  <Project Path="PublicNode/PublicNode.csproj" />
+  <Project Path="SecureNode/SecureNode.csproj" />
+</Solution>
