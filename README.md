@@ -1,172 +1,440 @@
-# 🛡️ PII-Shield: Distributed Database with Privacy Preserving
+# ENGLISH 
+# 🛡️ PII-Shield: Privacy-Preserving Vertical Fragmentation
 
-## ENGLISH
-**University:** Posts and Telecommunications Institute of Technology (PTITHCM)  
+**University:** Posts and Telecommunications Institute of Technology - PTIT HCM  
 **Major:** Software Engineering  
 **Subject:** Distributed Database  
 **Group:** N23DCCN051  
 **Member:** Phạm Minh Sáng  
+**Project ID:** #106 - Privacy-Preserving Vertical Fragmentation
 
 ---
 
-## 📖 Introduction
-**PII-Shield** is a lightweight distributed database system (Microservices Architecture) designed to address the challenge of securing sensitive data (PII - Personally Identifiable Information) in a distributed environment.
+## 1. Introduction
 
-This project simulates an e-commerce system where transaction data (Public) and customer data (Sensitive/PII) are fragmented and stored on completely isolated physical Nodes. The data joining process (Distributed Join) is securely performed over the network, combined with the AES encryption algorithm.
+**PII-Shield** is a lightweight distributed database system designed to protect **Personally Identifiable Information (PII)** in a distributed environment.
 
-## 🏗️ System Architecture
-The system consists of 3 independently operating Nodes that communicate via HTTP RESTful APIs:
+The project simulates an e-commerce system where customer identity data and purchase-history data are separated into different sites using **vertical fragmentation**. The public site stores only non-sensitive transaction data and an encrypted linking identifier named `Encrypted_OID`. The secure site stores the original `OID` and sensitive attributes such as name, SSN/CCCD, and credit card number.
 
-1. **🌐 Public Node (Site A - Port 8080):**
-   * Manages purchase transaction history.
-   * Does not contain personally identifiable information, only stores `Encrypted_OID` (encrypted customer ID).
-2. **🔒 Secure Node (Site B - Port 8081):**
-   * Manages sensitive PII data (Name, CCCD/SSN, Credit card number).
-   * Holds the **Secret Key (AES-256)** to decrypt `Encrypted_OID`.
-3. **💻 Client Node (Coordinator - Port 5000):**
-   * Acts as the user-facing application.
-   * Executes the **Distributed Join** algorithm: Fetches transaction history from Node A → Sends decryption requests for OIDs and retrieves names from Node B → Aggregates results and returns them to the user.
+The main idea is simple:
 
-## ✨ Key Features
-* **Data Privacy:** Applies AES encryption to foreign keys linking data across Nodes.
-* **Big Data (Mock Data):** Automatically generates `10,000` realistic mock records using the Bogus library.
-* **Network Performance Optimization (N+1 Query Problem Solved):** Uses `Task.WhenAll` for asynchronous multi-threaded decryption and implements **Pagination**.
-* **Fault Tolerance:** Graceful exception handling. If the Secure Node goes down unexpectedly, the system still displays the purchase history with a safe warning message *"PII Shielded (Node Offline)"* instead of crashing the entire application.
-* **Dockerized:** Fully packaged using Docker & Docker Compose for platform-independent deployment.
-
-## 🛠️ Technologies Used
-* **Framework:** .NET 10.0 (ASP.NET Core Web API)
-* **Database:** Entity Framework Core & SQLite (Auto-creates internal DB)
-* **Cryptography:** System.Security.Cryptography (AES)
-* **Containerization:** Docker & Docker Compose
-* **Other:** Bogus library (Mock data)
+> The Public Node can support transaction queries, but it cannot identify customers by itself. Identity reconstruction must go through the Secure Node.
 
 ---
 
-## 🚀 Setup and Run Guide
+## 2. System Architecture
+
+The system has 3 independently running nodes that communicate via HTTP REST APIs.
+
+| Node | Site | Port | Responsibility |
+|---|---:|---:|---|
+| **Public Node** | Site A | `8080` | Stores public transaction data: `Encrypted_OID`, `PurchaseHistory`. |
+| **Secure Node** | Site B | `8081` | Stores sensitive PII: `OID`, `Name`, `SSN/CCCD`, `CreditCard`, and AES key logic. |
+| **Client Node** | Site C | `5000` | Acts as query coordinator and returns final reports to the user. |
+
+### Data Fragmentation
+
+Global relation:
+
+```text
+Customer_Data(OID, Name, SSN/CCCD, CreditCard, PurchaseHistory)
+```
+
+Vertical fragments:
+
+```text
+F1 - Public Fragment:  (Encrypted_OID, PurchaseHistory)
+F2 - Secure Fragment:  (OID, Name, SSN/CCCD, CreditCard)
+```
+
+Secure reconstruction flow:
+
+```text
+ResolvedOID = SecureNode.Resolve(F1.Encrypted_OID)
+R = Resolved(F1) JOIN F2 ON ResolvedOID = F2.OID
+```
+
+This is intentionally different from a direct plaintext join because `F1` does **not** store the original `OID`.
+
+---
+
+## 3. Key Features
+
+- **Privacy-preserving vertical fragmentation:** separates public analytical data from sensitive identity data.
+- **Encrypted OID linking:** the Public Node stores `Encrypted_OID` instead of plaintext `OID`.
+- **Distributed join simulation:** the Client Node coordinates cross-node reconstruction through REST APIs.
+- **Fault tolerance demo:** if the Secure Node is offline, the system still returns purchase history while shielding PII.
+- **Mock e-commerce dataset:** generates around `10,000` sample records for testing.
+- **Dockerized deployment:** each node runs in an isolated Docker container.
+
+---
+
+## 4. Technologies Used
+
+| Layer | Technology |
+|---|---|
+| Backend | C# / .NET 10.0 / ASP.NET Core Web API |
+| Database | SQLite + Entity Framework Core |
+| Cryptography | AES via `System.Security.Cryptography` |
+| Containerization | Docker + Docker Compose |
+| Mock Data | Bogus library |
+
+---
+
+## 5. Project Structure
+
+```text
+Privacy-Preserving-Vertical-Fragmentation-PII-Shield/
+├── README.md
+└── PII-Shield/
+    ├── ClientNode/
+    ├── PublicNode/
+    ├── SecureNode/
+    ├── PII-Shield.sln
+    └── docker-compose.yml
+```
+
+---
+
+## 6. Setup and Run Guide
 
 ### Prerequisites
-* Install [Docker Desktop](https://www.docker.com/products/docker-desktop).
-* Install [.NET 10.0 SDK](https://dotnet.microsoft.com/download) (if you want to run directly without Docker).
 
-### Method 1: Run with Docker Compose (Recommended)
-This is the fastest way to launch a perfect distributed environment.
+Install:
 
-1. Clone the project to your machine and open a Terminal in the root directory (containing the `docker-compose.yml` file).
-2. Run the following command:
-   ```bash
-   docker-compose up --build
-3. On the first run, the system will take a few seconds to automatically create the database files and "seed" 10,000 sample records into SQLite. Please wait until the Terminal finishes executing all processes and displays messages like: `Application started. Press Ctrl+C to shut down`. or `Now listening on: http://[::]...` for all 3 nodes.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [.NET SDK](https://dotnet.microsoft.com/download) if you want to run the services without Docker
 
-### Method 2: Run Locally with .NET CLI (Without Docker)
-If you encounter difficulties with Docker, you can run directly using the .NET CLI:
-Open 3 separate Terminals, navigate into each project directory and run the following commands:
+### Method 1: Run with Docker Compose recommended
 
-- Terminal 1: `cd PublicNode && dotnet run --urls="http://localhost:8080"`
+Clone the repository and move into the directory that contains `docker-compose.yml`:
 
-- Terminal 2: `cd SecureNode && dotnet run --urls="http://localhost:8081"`
+```bash
+git clone https://github.com/PiupiuTenshi/Privacy-Preserving-Vertical-Fragmentation-PII-Shield.git
+cd Privacy-Preserving-Vertical-Fragmentation-PII-Shield/PII-Shield
+docker compose up --build
+```
 
-- Terminal 3: `cd ClientNode && dotnet run --urls="http://localhost:5000"`
+If your Docker Compose uses the older command format, use:
 
-## 🔍 Demo Scenarios & API Endpoints
-After the system has started successfully (via Docker or Local), open a web browser or use Postman/Thunder Client to test the following features:
+```bash
+docker-compose up --build
+```
 
-1. Distributed Join with Pagination (Normal Operation)
-Query the list of transaction history. The Client Node will automatically call the Public Node to fetch transactions, then call the Secure Node to decrypt OIDs and retrieve customer names.
-GET `http://localhost:5000/api/client/all-reports?page=1&pageSize=15`
-(You can adjust the `page` and `pageSize` parameters in the URL to view different data sets).
+On the first run, the services may take a few seconds to create SQLite database files and seed mock data.
 
-2. System Failure Scenario (Fault Tolerance)
-This scenario simulates the sensitive data server (Site B - Secure Node) being powered off or having a network disconnection.
+### Method 2: Run locally with .NET CLI
 
-1. While the Docker system is running, open a new Terminal and type the following command to stop Node B:
+Open 3 terminals from the `PII-Shield` directory.
 
-    ```bash
-   docker-compose up --build
-2. Go back to your browser and reload (F5) the all-reports link from Scenario 1.
+Terminal 1:
 
-3. Expected result: Instead of crashing the entire system or leaving the page loading indefinitely, the API immediately returns the purchase history list. However, the CustomerName field will automatically be replaced with a safe warning string: "PII Shielded (Node Offline)", ensuring an uninterrupted user experience.
+```bash
+cd PublicNode
+dotnet run --urls="http://localhost:8080"
+```
 
-----------------------------------------------------------------------------------------------------------
-## Việt Nam
-**Trường:** Học viện Công nghệ Bưu Chính Viễn Thông (PTITHCM)
-**Chuyên ngành:** Kỹ thuật phần mềm (Software Engineering)
-**Môn học:** Cơ sở dữ liệu phân tán (Distributed Database)
-**Nhóm:** N23DCCN051
-**Thành viên:** Phạm Minh Sáng
+Terminal 2:
 
----
+```bash
+cd SecureNode
+dotnet run --urls="http://localhost:8081"
+```
 
-## 📖 Giới thiệu 
-**PII-Shield** là một hệ thống cơ sở dữ liệu phân tán thu nhỏ (Microservices Architecture) được thiết kế nhằm giải quyết bài toán bảo mật dữ liệu nhạy cảm (PII - Personally Identifiable Information) trong môi trường phân tán. 
+Terminal 3:
 
-Dự án mô phỏng một hệ thống thương mại điện tử nơi dữ liệu giao dịch (Public) và dữ liệu khách hàng (Sensitive/PII) được phân mảnh và lưu trữ ở các Node (máy chủ) vật lý hoàn toàn cách ly. Quá trình ghép nối dữ liệu (Distributed Join) được thực hiện an toàn qua mạng, kết hợp cùng thuật toán mã hóa AES.
-
-## 🏗️ Kiến trúc hệ thống 
-Hệ thống bao gồm 3 Node hoạt động độc lập và giao tiếp với nhau qua HTTP RESTful API:
-
-1. **🌐 Public Node (Site A - Port 8080):** 
-   - Quản lý lịch sử giao dịch mua hàng.
-   - Không chứa thông tin định danh khách hàng, chỉ lưu trữ `Encrypted_OID` (ID khách hàng đã bị mã hóa).
-2. **🔒 Secure Node (Site B - Port 8081):**
-   - Quản lý dữ liệu PII nhạy cảm (Tên, CCCD/SSN, Số thẻ tín dụng).
-   - Nắm giữ **Secret Key (AES-256)** để giải mã `Encrypted_OID`.
-3. **💻 Client Node (Trạm điều phối - Port 5000):**
-   - Đóng vai trò là ứng dụng phía người dùng.
-   - Thực hiện thuật toán **Distributed Join**: Lấy lịch sử giao dịch từ Node A -> Gửi yêu cầu giải mã OID và lấy Tên từ Node B -> Tổng hợp kết quả trả về cho người dùng.
-
-## ✨ Tính năng nổi bật 
-- **Bảo mật dữ liệu (Data Privacy):** Áp dụng mã hóa AES cho các khóa ngoại (Foreign Keys) liên kết giữa các Node.
-- **Dữ liệu lớn (Mock Data):** Tự động sinh `10,000` records giả lập dữ liệu thực tế bằng thư viện `Bogus`.
-- **Tối ưu hiệu năng mạng (N+1 Query Problem Solved):** Sử dụng `Task.WhenAll` để xử lý bất đồng bộ (Asynchronous) nhiều luồng giải mã cùng lúc và áp dụng **Phân trang (Pagination)**.
-- **Xử lý sự cố (Fault Tolerance):** Khả năng bắt lỗi (Exception Handling) mượt mà. Khi Secure Node bị sập đột ngột, hệ thống vẫn hiển thị lịch sử mua hàng kèm theo cảnh báo *"PII Shielded (Node Offline)"* thay vì làm treo toàn bộ ứng dụng.
-- **Dockerized:** Đóng gói hoàn chỉnh bằng Docker & Docker Compose để triển khai độc lập nền tảng.
-
-## 🛠️ Công nghệ sử dụng 
-- **Framework:** .NET 10.0 (ASP.NET Core Web API)
-- **Database:** Entity Framework Core & SQLite (Tự động tạo DB nội bộ)
-- **Cryptography:** System.Security.Cryptography (AES)
-- **Containerization:** Docker & Docker Compose
-- **Khác:** Thư viện Bogus (Mock data)
+```bash
+cd ClientNode
+dotnet run --urls="http://localhost:5000"
+```
 
 ---
 
-## 🚀 Hướng dẫn cài đặt và chạy dự án (How to run)
+## 7. Demo Scenarios
 
-### Yêu cầu tiên quyết 
-- Cài đặt [Docker Desktop](https://www.docker.com/products/docker-desktop).
-- Cài đặt [.NET 10.0 SDK](https://dotnet.microsoft.com/download) (Nếu muốn chạy trực tiếp không qua Docker).
+### Scenario 1: Normal distributed join
 
-### Cách 1: Chạy bằng Docker Compose (Khuyên dùng)
-Đây là cách nhanh nhất để khởi chạy môi trường phân tán hoàn hảo.
-1. Clone dự án về máy và mở Terminal tại thư mục gốc (nơi chứa file `docker-compose.yml`).
-2. Chạy lệnh sau:
-   ```bash
-   docker-compose up --build
-3. Lần khởi chạy đầu tiên, hệ thống sẽ mất khoảng vài giây để tự động tạo file cơ sở dữ liệu và "bơm" (seed) 10.000 dòng dữ liệu mẫu vào SQLite. Bạn hãy đợi đến khi Terminal chạy xong các tiến trình và xuất hiện dòng chữ tương tự như: `Application started. Press Ctrl+C to shut down.` hoặc `Now listening on: http://[::]...` cho cả 3 node.
+Open a browser, Postman, or Thunder Client and call:
 
-### Cách 2: Chạy Local bằng .NET CLI (Không dùng Docker)
-Nếu bạn gặp khó khăn với Docker, có thể chạy trực tiếp bằng công cụ dòng lệnh của .NET:
-Mở 3 Terminal riêng biệt, di chuyển vào từng thư mục dự án và chạy các lệnh sau:
-- Terminal 1: `cd PublicNode && dotnet run --urls="http://localhost:8080"`
-- Terminal 2: `cd SecureNode && dotnet run --urls="http://localhost:8081"`
-- Terminal 3: `cd ClientNode && dotnet run --urls="http://localhost:5000"`
+```http
+GET http://localhost:5000/api/client/all-reports?page=1&pageSize=15
+```
+
+Expected result:
+
+- Client Node fetches transaction data from Public Node.
+- Client Node requests authorized OID resolution/customer data from Secure Node.
+- The final response contains paginated purchase-history reports.
+
+You can change `page` and `pageSize` to test different result sets.
+
+### Scenario 2: Secure Node failure
+
+This scenario simulates the sensitive data server going offline.
+
+While Docker Compose is running, open a new terminal and execute:
+
+```bash
+docker stop secure-node
+```
+
+Then reload:
+
+```http
+GET http://localhost:5000/api/client/all-reports?page=1&pageSize=15
+```
+
+Expected result:
+
+- The system should not crash.
+- Purchase-history data from the Public Node should still be returned.
+- Customer identity should not be reconstructed.
+- The customer display field should show a safe value such as:
+
+```text
+PII Shielded (Node Offline)
+```
+
+To start the Secure Node again:
+
+```bash
+docker start secure-node
+```
 
 ---
 
-## 🔍 Kịch bản Demo & API Endpoints
 
-Sau khi hệ thống khởi chạy thành công (bằng Docker hoặc Local), hãy mở trình duyệt web hoặc sử dụng phần mềm Postman/Thunder Client để kiểm tra các tính năng:
+## 8. Suggested Repository Description and Topics
 
-### 1. Phép Join phân tán có phân trang (Hoạt động bình thường)
-Truy vấn danh sách lịch sử giao dịch. Client Node sẽ tự động gọi Public Node lấy giao dịch, sau đó gọi Secure Node để giải mã OID và lấy tên khách hàng.
-👉 **GET** `http://localhost:5000/api/client/all-reports?page=1&pageSize=15`
-*(Bạn có thể thay đổi số `page` và `pageSize` trên đường link để xem các dữ liệu khác nhau).*
+Suggested GitHub description:
 
-### 2. Kịch bản lỗi hệ thống 
-Kịch bản này mô phỏng việc máy chủ chứa dữ liệu nhạy cảm (Site B - Secure Node) bị sập nguồn hoặc bị ngắt kết nối mạng.
-1. Trong khi hệ thống Docker đang chạy, mở một Terminal mới và gõ lệnh sau để tắt Node B:
-   ```bash
-   docker stop secure-node
-2. Quay lại trình duyệt và tải lại (F5) đường link `all-reports` ở kịch bản 1.
-3. Kết quả kỳ vọng: Thay vì báo lỗi toàn bộ hệ thống hoặc tải trang vô tận, API vẫn trả về danh sách lịch sử mua hàng ngay lập tức. Tuy nhiên, trường `CustomerName` sẽ tự động chuyển thành chuỗi cảnh báo an toàn: "PII Shielded (Node Offline)", đảm bảo trải nghiệm người dùng không bị gián đoạn.
+```text
+Privacy-preserving distributed database using vertical fragmentation, AES-encrypted OID linking, Dockerized .NET microservices, and SQLite.
+```
+
+Suggested topics:
+
+```text
+distributed-database, vertical-fragmentation, privacy-preserving, pii, aes-encryption, dotnet, docker, sqlite, microservices
+```
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+# VIETNAM
+# 🛡️ PII-Shield: Phân Mảnh Dọc Bảo Vệ Quyền Riêng Tư
+
+**Trường:** Học viện Công nghệ Bưu chính Viễn thông - PTIT HCM  
+**Chuyên ngành:** Kỹ thuật Phần mềm  
+**Môn học:** Cơ sở Dữ liệu Phân tán  
+**Nhóm:** N23DCCN051  
+**Thành viên:** Phạm Minh Sáng  
+**Mã đề tài:** #106 - Phân Mảnh Dọc Bảo Vệ Thông Tin Cá Nhân
+
+---
+
+## 1. Giới Thiệu
+
+**PII-Shield** là một hệ thống cơ sở dữ liệu phân tán nhẹ được thiết kế để bảo vệ **Thông Tin Nhận Dạng Cá Nhân (PII)** trong môi trường phân tán.
+
+Dự án mô phỏng một hệ thống thương mại điện tử, trong đó dữ liệu danh tính khách hàng và dữ liệu lịch sử mua hàng được tách biệt vào các site khác nhau bằng **phân mảnh dọc**. Site công khai chỉ lưu trữ dữ liệu giao dịch không nhạy cảm và một định danh liên kết được mã hóa tên là `Encrypted_OID`. Site bảo mật lưu trữ `OID` gốc và các thuộc tính nhạy cảm như tên, SSN/CCCD, và số thẻ tín dụng.
+
+Ý tưởng chính rất đơn giản:
+
+> Node Công khai có thể xử lý các truy vấn giao dịch, nhưng không thể tự mình xác định danh tính khách hàng. Việc tái tạo danh tính phải đi qua Node Bảo mật.
+
+---
+
+## 2. Kiến Trúc Hệ Thống
+
+Hệ thống gồm 3 node chạy độc lập, giao tiếp với nhau qua HTTP REST API.
+
+| Node | Site | Cổng | Vai trò |
+|---|---:|---:|---|
+| **Node Công khai** | Site A | `8080` | Lưu trữ dữ liệu giao dịch công khai: `Encrypted_OID`, `PurchaseHistory`. |
+| **Node Bảo mật** | Site B | `8081` | Lưu trữ PII nhạy cảm: `OID`, `Name`, `SSN/CCCD`, `CreditCard`, và logic khóa AES. |
+| **Node Khách hàng** | Site C | `5000` | Đóng vai trò điều phối truy vấn và trả về báo cáo cuối cùng cho người dùng. |
+
+### Phân Mảnh Dữ Liệu
+
+Quan hệ toàn cục:
+
+```text
+Customer_Data(OID, Name, SSN/CCCD, CreditCard, PurchaseHistory)
+```
+
+Các mảnh dọc:
+
+```text
+F1 - Mảnh Công khai:  (Encrypted_OID, PurchaseHistory)
+F2 - Mảnh Bảo mật:   (OID, Name, SSN/CCCD, CreditCard)
+```
+
+Luồng tái tạo bảo mật:
+
+```text
+ResolvedOID = SecureNode.Resolve(F1.Encrypted_OID)
+R = Resolved(F1) JOIN F2 ON ResolvedOID = F2.OID
+```
+
+Cách này khác biệt có chủ đích so với phép nối plaintext trực tiếp, vì `F1` **không** lưu trữ `OID` gốc.
+
+---
+
+## 3. Tính Năng Chính
+
+- **Phân mảnh dọc bảo vệ quyền riêng tư:** tách biệt dữ liệu phân tích công khai khỏi dữ liệu danh tính nhạy cảm.
+- **Liên kết OID mã hóa:** Node Công khai lưu `Encrypted_OID` thay vì `OID` dạng plaintext.
+- **Mô phỏng phép nối phân tán:** Node Khách hàng điều phối việc tái tạo dữ liệu liên node qua REST API.
+- **Demo chịu lỗi:** nếu Node Bảo mật ngoại tuyến, hệ thống vẫn trả về lịch sử mua hàng trong khi che chắn PII.
+- **Bộ dữ liệu thương mại điện tử mẫu:** tạo khoảng `10.000` bản ghi mẫu để kiểm thử.
+- **Triển khai Docker hóa:** mỗi node chạy trong một container Docker riêng biệt.
+
+---
+
+## 4. Công Nghệ Sử Dụng
+
+| Tầng | Công nghệ |
+|---|---|
+| Backend | C# / .NET 10.0 / ASP.NET Core Web API |
+| Cơ sở dữ liệu | SQLite + Entity Framework Core |
+| Mật mã học | AES qua `System.Security.Cryptography` |
+| Container hóa | Docker + Docker Compose |
+| Dữ liệu mẫu | Thư viện Bogus |
+
+---
+
+## 5. Cấu Trúc Dự Án
+
+```text
+Privacy-Preserving-Vertical-Fragmentation-PII-Shield/
+├── README.md
+└── PII-Shield/
+    ├── ClientNode/
+    ├── PublicNode/
+    ├── SecureNode/
+    ├── PII-Shield.sln
+    └── docker-compose.yml
+```
+
+---
+
+## 6. Hướng Dẫn Cài Đặt và Chạy
+
+### Yêu Cầu
+
+Cài đặt:
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [.NET SDK](https://dotnet.microsoft.com/download) nếu bạn muốn chạy các dịch vụ mà không dùng Docker
+
+### Phương án 1: Chạy với Docker Compose (khuyến nghị)
+
+Clone repository và di chuyển vào thư mục chứa `docker-compose.yml`:
+
+```bash
+git clone https://github.com/PiupiuTenshi/Privacy-Preserving-Vertical-Fragmentation-PII-Shield.git
+cd Privacy-Preserving-Vertical-Fragmentation-PII-Shield/PII-Shield
+docker compose up --build
+```
+
+Nếu Docker Compose của bạn dùng định dạng lệnh cũ hơn, hãy sử dụng:
+
+```bash
+docker-compose up --build
+```
+
+Ở lần chạy đầu tiên, các dịch vụ có thể mất vài giây để tạo file SQLite và seed dữ liệu mẫu.
+
+### Phương án 2: Chạy cục bộ với .NET CLI
+
+Mở 3 terminal từ thư mục `PII-Shield`.
+
+Terminal 1:
+
+```bash
+cd PublicNode
+dotnet run --urls="http://localhost:8080"
+```
+
+Terminal 2:
+
+```bash
+cd SecureNode
+dotnet run --urls="http://localhost:8081"
+```
+
+Terminal 3:
+
+```bash
+cd ClientNode
+dotnet run --urls="http://localhost:5000"
+```
+
+---
+
+## 7. Các Kịch Bản Demo
+
+### Kịch bản 1: Phép nối phân tán bình thường
+
+Mở trình duyệt, Postman, hoặc Thunder Client và gọi:
+
+```http
+GET http://localhost:5000/api/client/all-reports?page=1&pageSize=15
+```
+
+Kết quả mong đợi:
+
+- Node Khách hàng lấy dữ liệu giao dịch từ Node Công khai.
+- Node Khách hàng yêu cầu phân giải OID được ủy quyền / dữ liệu khách hàng từ Node Bảo mật.
+- Phản hồi cuối cùng chứa các báo cáo lịch sử mua hàng có phân trang.
+
+Bạn có thể thay đổi `page` và `pageSize` để kiểm thử các tập kết quả khác nhau.
+
+### Kịch bản 2: Node Bảo mật bị lỗi
+
+Kịch bản này mô phỏng trường hợp máy chủ dữ liệu nhạy cảm ngoại tuyến.
+
+Trong khi Docker Compose đang chạy, mở một terminal mới và thực thi:
+
+```bash
+docker stop secure-node
+```
+
+Sau đó tải lại:
+
+```http
+GET http://localhost:5000/api/client/all-reports?page=1&pageSize=15
+```
+
+Kết quả mong đợi:
+
+- Hệ thống không bị crash.
+- Dữ liệu lịch sử mua hàng từ Node Công khai vẫn được trả về.
+- Danh tính khách hàng không được tái tạo.
+- Trường hiển thị khách hàng sẽ hiện một giá trị an toàn như:
+
+```text
+PII Shielded (Node Offline)
+```
+
+Để khởi động lại Node Bảo mật:
+
+```bash
+docker start secure-node
+```
+
+---
+
+## 8. Gợi Ý Mô Tả và Chủ Đề Repository
+
+Mô tả GitHub gợi ý:
+
+```text
+Privacy-preserving distributed database using vertical fragmentation, AES-encrypted OID linking, Dockerized .NET microservices, and SQLite.
+```
+
+Chủ đề gợi ý:
+
+```text
+distributed-database, vertical-fragmentation, privacy-preserving, pii, aes-encryption, dotnet, docker, sqlite, microservices
+```
